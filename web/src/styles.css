@@ -1,0 +1,13 @@
+@import '@astryxdesign/core/reset.css';
+@import '@astryxdesign/core/astryx.css';
+@import '@astryxdesign/theme-neutral/fonts.css';
+@import '@astryxdesign/theme-neutral/theme.css';
+
+body {
+  font-family: var(--font-family-body);
+}
+
+.mono {
+  font-family: var(--font-family-code, ui-monospace, monospace);
+  word-break: break-all;
+}

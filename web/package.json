@@ -1,0 +1,26 @@
+{
+  "name": "opencups-web",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "@astryxdesign/core": "0.7.16",
+    "@astryxdesign/theme-neutral": "0.7.16",
+    "@heroicons/react": "2.2.0",
+    "@stylexjs/stylex": "0.19.0",
+    "react": "19.1.1",
+    "react-dom": "19.1.1",
+    "react-router-dom": "7.9.4",
+    "recharts": "2.15.4"
+  },
+  "devDependencies": {
+    "@astryxdesign/cli": "0.7.16",
+    "@vitejs/plugin-react": "5.0.4",
+    "vite": "7.1.7"
+  }
+}

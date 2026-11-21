@@ -1,0 +1,21 @@
+{
+  "name": "opencups-server",
+  "private": true,
+  "version": "0.1.0",
+  "description": "LoRa Basics Station CUPS server (Node.js port of the basicstation CUPS example)",
+  "type": "module",
+  "main": "src/index.js",
+  "engines": {
+    "node": ">=22.2"
+  },
+  "scripts": {
+    "start": "node src/index.js",
+    "dev": "node --watch src/index.js",
+    "test": "node --test test/*.test.js"
+  },
+  "dependencies": {
+    "@peculiar/x509": "1.12.3",
+    "express": "4.21.2",
+    "pg": "8.13.1"
+  }
+}

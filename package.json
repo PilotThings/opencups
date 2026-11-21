@@ -1,0 +1,13 @@
+{
+  "name": "opencups",
+  "private": true,
+  "version": "0.1.0",
+  "scripts": {
+    "setup": "npm --prefix server install && npm --prefix web install && npm --prefix web run build",
+    "build": "npm --prefix web run build",
+    "start": "npm --prefix server start",
+    "test": "npm --prefix server test",
+    "db:up": "docker compose up -d --build",
+    "db:down": "docker compose down"
+  }
+}
