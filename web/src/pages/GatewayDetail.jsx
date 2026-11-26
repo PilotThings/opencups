@@ -93,6 +93,12 @@ export default function GatewayDetail() {
     <Page
       title={g.name || g.euiFormatted}
       subtitle={<Mono>{g.euiFormatted}</Mono>}
+      breadcrumb={
+        <Breadcrumbs>
+          <BreadcrumbItem href="/gateways">Gateways</BreadcrumbItem>
+          <BreadcrumbItem isCurrent>{g.name || g.euiFormatted}</BreadcrumbItem>
+        </Breadcrumbs>
+      }
       actions={
         <>
           <Button label="Provisioning files" icon={<Icon icon={ArrowDownTrayIcon} />} onClick={downloadBootstrap}
@@ -101,10 +107,6 @@ export default function GatewayDetail() {
           <Button label="Remove" variant="destructive" icon={<Icon icon={TrashIcon} />} onClick={() => setDeleting(true)} />
         </>
       }>
-      <Breadcrumbs>
-        <BreadcrumbItem href="/gateways">Gateways</BreadcrumbItem>
-        <BreadcrumbItem isCurrent>{g.name || g.euiFormatted}</BreadcrumbItem>
-      </Breadcrumbs>
       <ErrorBanner error={gw.error} />
 
       <Grid columns={{ minWidth: 380, repeat: 'fit' }} gap={4}>

@@ -28,6 +28,12 @@ npm start                          # http://localhost:8080 (UI + API), CUPS on h
 
 Development with hot reload: `npm run dev` in `server/` and `npm run dev` in `web/`
 (Vite on http://localhost:5173, proxies `/api` to :8080).
+UI changes are not visible on :8080 until you rebuild with `npm run build`; use the Vite dev server for live reload.
+If port 5173 is already in use, run Vite on another port:
+
+```bash
+npm --prefix web run dev -- --port 5180    # http://localhost:5180
+```
 
 Then in the UI:
 
@@ -36,6 +42,10 @@ Then in the UI:
    The CUPS endpoint starts as soon as a CA exists.
 2. **Gateways → Add gateway**: EUI, LNS credentials (client cert + key, or auth token), optional overrides.
    A CUPS client certificate (CN = EUI) and, optionally, bootstrap credentials are issued by the CA.
+   **Optional – ChirpStack v4**: in **Setup → ChirpStack** enter the gRPC API address (`host:port`), a tenant ID and an
+   API key (stored server-side, never returned by the API). The connection is tested on save. Afterwards **Add gateway**
+   offers a picker with the tenant's ChirpStack gateways that are not yet in OpenCUPS; choosing one fills in EUI and name,
+   and the CUPS client certificate is issued as usual.
 3. On the gateway page, **Provisioning files** downloads `cups.{uri,trust,crt,key}` (and `cups-boot.*`)
    for the Station home directory. On its next CUPS request the gateway receives its LNS URI and credentials.
 

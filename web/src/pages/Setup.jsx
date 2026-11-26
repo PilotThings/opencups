@@ -60,7 +60,6 @@ function CaSection({ setup, onChanged }) {
         <HStack hAlign="between" vAlign="center" wrap="wrap" gap={2}>
           <VStack gap={1}>
             <Heading level={2}>CUPS CA certificate</Heading>
-            <Text type="supporting">Signs the CUPS server certificate and the gateway client certificates. Gateways receive it as cups.trust.</Text>
           </VStack>
           {setup.ca && (
             <HStack gap={2}>
@@ -77,7 +76,6 @@ function CaSection({ setup, onChanged }) {
             <Text type="label">CUPS server certificate (auto-issued)</Text>
             <MetadataList label={{ width: 140 }}>
               <MetadataListItem label="Hosts"><Mono>{setup.serverCert.hosts.join(', ')}</Mono></MetadataListItem>
-              <MetadataListItem label="Valid until">{dateTime(setup.serverCert.notAfter)}</MetadataListItem>
               <MetadataListItem label="Issued">{dateTime(setup.serverCert.issuedAt)}</MetadataListItem>
             </MetadataList>
           </VStack>
@@ -93,7 +91,7 @@ function CaSection({ setup, onChanged }) {
           {error && <Banner status="error" title="CA not changed" description={error} />}
           {mode === 'self-signed' ? (
             <VStack gap={3}>
-              <TextInput label="Common name" value={cn} onChange={setCn} />
+              <TextInput label="Common name (CN)" value={cn} onChange={setCn} />
               <TextInput label="Organization" value={org} onChange={setOrg} isOptional />
               <HStack gap={3} wrap="wrap">
                 <TextInput label="Validity (days)" value={days} onChange={setDays} inputMode="numeric" width={180} />
@@ -154,13 +152,15 @@ function GeneralSection({ setup, onChanged }) {
       <VStack gap={5}>
         <VStack gap={1}>
           <Heading level={2}>Endpoints</Heading>
-          <Text type="supporting">What gateways are told to connect to. Per-gateway overrides are set on the gateway itself.</Text>
+          <Text type="supporting">refer your gateway manufacturer how to use theses endoints</Text>
         </VStack>
         {error && <Banner status="error" title="Settings not saved" description={error} />}
         <TextInput label="CUPS public URL" value={cupsUrl} onChange={setCupsUrl} type="url"
           description="URL gateways use to reach this CUPS server (cups.uri). Its host name goes into the server certificate." placeholder="https://cups.example.com:6040" />
         <TextInput label="LNS URL" value={lnsUrl} onChange={setLnsUrl} type="url"
-          description="LNS (tc.uri) handed to every gateway, e.g. wss://eu1.cloud.thethings.network:8887" placeholder="wss://lns.example.com:8887" />
+          description={setup.chirpstack
+            ? 'Enter the gateway-accessible Basics Station URL of your ChirpStack Gateway Bridge (ws:// or wss://). It may differ from the ChirpStack API server and cannot be discovered through that API.'
+            : 'LNS (tc.uri) handed to every gateway, e.g. wss://eu1.cloud.thethings.network:8887'} placeholder="wss://lns.example.com:8887" />
         <PemField label="Default LNS trust" value={lnsTrust} onChange={setLnsTrust} isOptional
           description="CA certificate of the LNS (tc.trust) used for gateways without their own trust." placeholder="-----BEGIN CERTIFICATE-----" />
         {setup.lnsTrust && <Text type="supporting">Current: {setup.lnsTrust.subject} · valid until {dateTime(setup.lnsTrust.notAfter)}</Text>}
@@ -174,9 +174,87 @@ function GeneralSection({ setup, onChanged }) {
   );
 }
 
+function ChirpStackSection({ setup, onChanged }) {
+  const toast = useToast();
+  const cs = setup.chirpstack;
+  const [server, setServer] = useState(cs?.server || '');
+  const [tls, setTls] = useState(cs?.tls ?? true);
+  const [tenantId, setTenantId] = useState(cs?.tenantId || '');
+  const [apiKey, setApiKey] = useState('');
+  const [error, setError] = useState(null);
+  const [busy, setBusy] = useState(false);
+  const [confirm, setConfirm] = useState(false);
+
+  useEffect(() => {
+    setServer(cs?.server || '');
+    setTls(cs?.tls ?? true);
+    setTenantId(cs?.tenantId || '');
+  }, [cs]);
+
+  const save = async () => {
+    setBusy(true);
+    setError(null);
+    try {
+      onChanged(await api('/setup/chirpstack', { method: 'PUT', body: { server, tls, tenantId, apiKey } }));
+      setApiKey('');
+      toast({ body: 'ChirpStack connected' });
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const remove = async () => {
+    setBusy(true);
+    try {
+      onChanged(await api('/setup/chirpstack', { method: 'DELETE' }));
+      setApiKey('');
+      toast({ body: 'ChirpStack integration removed' });
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setBusy(false);
+      setConfirm(false);
+    }
+  };
+
+  return (
+    <Card>
+      <VStack gap={5}>
+        <HStack hAlign="between" vAlign="center" wrap="wrap" gap={2}>
+          <VStack gap={1}>
+            <Heading level={2}>ChirpStack integration</Heading>
+            <Text type="supporting">Connects to the ChirpStack v4 gRPC API. When set, gateways can be picked from the tenant's ChirpStack gateway list when adding them.</Text>
+          </VStack>
+          {cs && <Badge variant="neutral" label="Connected" />}
+        </HStack>
+        {error && <Banner status="error" title="ChirpStack not saved" description={error} />}
+        <TextInput label="API server" value={server} onChange={setServer} placeholder="chirpstack.example.com:8080"
+          description="host:port of the ChirpStack gRPC API (the same port as the web UI, 8080 by default)." />
+        <CheckboxInput label="Use TLS" value={tls} onChange={setTls} description="Turn off only when the API is served without TLS." />
+        <TextInput label="Tenant ID" value={tenantId} onChange={setTenantId} placeholder="00000000-0000-0000-0000-000000000000"
+          description="UUID of the tenant whose gateways are offered." />
+        <TextInput label="API key" type="password" value={apiKey} onChange={setApiKey} isOptional={Boolean(cs)}
+          description={cs ? 'Stored on the server and never shown again. Leave empty to keep the current key.' : 'Created in ChirpStack under API keys. A tenant API key is enough; it is stored on the server.'} />
+        <HStack gap={2}>
+          <Button label={cs ? 'Update connection' : 'Connect'} variant="primary" onClick={save} isLoading={busy}
+            isDisabled={busy || !server.trim() || !tenantId.trim() || (!cs && !apiKey.trim())} />
+          {cs && <Button label="Remove" variant="ghost" onClick={() => setConfirm(true)} isDisabled={busy} />}
+        </HStack>
+        <Text type="supporting">The connection is tested when saving.</Text>
+      </VStack>
+      <AlertDialog isOpen={confirm} onOpenChange={setConfirm} title="Remove the ChirpStack integration?"
+        description="The stored API key is deleted. Existing gateways are not affected."
+        actionLabel="Remove" onAction={remove} isActionLoading={busy} />
+    </Card>
+  );
+}
+
 const NAV = [
   { id: 'setup-ca', label: 'CUPS CA certificate' },
   { id: 'setup-endpoints', label: 'Endpoints' },
+  { id: 'setup-chirpstack', label: 'ChirpStack' },
 ];
 
 function SetupNav({ items }) {
@@ -248,6 +326,7 @@ export default function Setup() {
             <VStack gap={6}>
               <div id="setup-ca" style={SCROLL_MARGIN}><CaSection setup={data} onChanged={setData} /></div>
               <div id="setup-endpoints" style={SCROLL_MARGIN}><GeneralSection setup={data} onChanged={setData} /></div>
+              <div id="setup-chirpstack" style={SCROLL_MARGIN}><ChirpStackSection setup={data} onChanged={setData} /></div>
               {/* lets the last section scroll up to the top of the screen */}
               <div aria-hidden style={{ height: '70vh' }} />
             </VStack>

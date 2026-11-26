@@ -10,7 +10,7 @@ import { TextArea } from '@astryxdesign/core/TextArea';
 import { FileInput } from '@astryxdesign/core/FileInput';
 import { dateTime, expiryBadge } from '../format.js';
 
-export function Page({ title, subtitle, actions, children, maxWidth = 1200 }) {
+export function Page({ title, subtitle, actions, breadcrumb, children, maxWidth = 1200 }) {
   return (
     <Layout
       height="fill"
@@ -18,6 +18,7 @@ export function Page({ title, subtitle, actions, children, maxWidth = 1200 }) {
       content={
         <LayoutContent padding={6}>
           <VStack gap={6}>
+            {breadcrumb}
             <HStack hAlign="between" vAlign="center" gap={4} wrap="wrap">
               <VStack gap={1}>
                 <Heading level={1}>{title}</Heading>

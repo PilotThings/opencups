@@ -3,7 +3,8 @@ import { query } from './db.js';
 import { normalizeEui, formatEui } from './cups/eui.js';
 import { buildCredential, crc32 } from './cups/protocol.js';
 import { assertKeyMatchesCert, certInfo, isIssuedBy, issueCertificate, parseCert, PkiError } from './pki.js';
-import { getCa, getGeneral, parseUrl } from './settings.js';
+import { getCa, getChirpStack, getGeneral, parseUrl } from './settings.js';
+import { generateClientCertificate, ChirpStackError } from './chirpstack/client.js';
 
 export class NotFound extends Error {
   constructor(m) {
@@ -49,6 +50,14 @@ export async function issueBootCert(euiParam) {
 /** Validate & normalise the credential-related fields of a create/update body. */
 async function credentialFields(body, existing, gwEui) {
   const out = {};
+
+  if (body.generateChirpStackCert === true) {
+    if (body.tcCertPem !== undefined || body.tcKeyPem !== undefined) throw new PkiError('Choose either a ChirpStack certificate or a supplied certificate');
+    const cfg = await getChirpStack();
+    if (!cfg) throw new ChirpStackError('ChirpStack integration is not configured', 409);
+    const credentials = await generateClientCertificate(cfg, gwEui);
+    body = { ...body, tcCertPem: credentials.certPem, tcKeyPem: credentials.keyPem, tcToken: '' };
+  }
 
   // --- CUPS client credentials -------------------------------------------
   const cupsCert = clean(body.cupsCertPem);

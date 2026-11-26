@@ -9,7 +9,9 @@ import { Divider } from '@astryxdesign/core/Divider';
 import { CheckboxInput } from '@astryxdesign/core/CheckboxInput';
 import { SegmentedControl, SegmentedControlItem } from '@astryxdesign/core/SegmentedControl';
 import { api } from '../api.js';
+import { Selector } from '@astryxdesign/core/Selector';
 import { PemField } from './common.jsx';
+import { dateTime } from '../format.js';
 
 const empty = {
   eui: '', name: '', description: '', tcUri: '', cupsUri: '',
@@ -26,11 +28,17 @@ export function GatewayForm({ isOpen, onOpenChange, gateway, onSaved }) {
   const [f, setF] = useState(empty);
   const [error, setError] = useState(null);
   const [saving, setSaving] = useState(false);
+  // null while checking setup; otherwise configuration and gateway list status.
+  const [cs, setCs] = useState(null);
+  const [source, setSource] = useState('manual');
+  const [selectedGateway, setSelectedGateway] = useState('');
   const set = (k) => (v) => setF((s) => ({ ...s, [k]: v }));
 
   useEffect(() => {
     if (!isOpen) return;
     setError(null);
+    setSource('manual');
+    setSelectedGateway('');
     setF(gateway ? {
       ...empty,
       eui: gateway.euiFormatted,
@@ -43,13 +51,47 @@ export function GatewayForm({ isOpen, onOpenChange, gateway, onSaved }) {
     } : empty);
   }, [isOpen, gateway]);
 
+  useEffect(() => {
+    setCs(null);
+    if (!isOpen) return undefined;
+    let cancelled = false;
+    (async () => {
+      try {
+        const setup = await api('/setup');
+        if (cancelled) return;
+        if (!setup.chirpstack) {
+          setCs({ configured: false, gateways: [], error: null });
+          return;
+        }
+        if (gateway) {
+          setCs({ configured: true, gateways: [], error: null });
+          return;
+        }
+        setCs({ configured: true, gateways: null, error: null });
+        const gateways = await api('/chirpstack/gateways');
+        if (!cancelled) setCs({ configured: true, gateways, error: null });
+      } catch (e) {
+        if (!cancelled) setCs((c) => ({ configured: c?.configured || false, gateways: [], error: e.message }));
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [isOpen, gateway]);
+
+  const pickChirpStack = (eui) => {
+    const g = cs?.gateways?.find((x) => x.eui === eui);
+    setSelectedGateway(eui);
+    setF((s) => (g ? { ...s, eui: g.eui, name: g.name || '', description: g.description || '', tcAuth: 'chirpstack' } : { ...s, eui: '' }));
+  };
+
   const submit = async () => {
     setSaving(true);
     setError(null);
     const body = { name: f.name, description: f.description, tcUri: f.tcUri, cupsUri: f.cupsUri };
     if (!isEdit) body.eui = f.eui;
     if (f.tcTrustPem.trim()) body.tcTrustPem = f.tcTrustPem;
-    if (f.tcAuth === 'certificate') {
+    if (f.tcAuth === 'chirpstack') {
+      body.generateChirpStackCert = true;
+    } else if (f.tcAuth === 'certificate') {
       if (f.tcCertPem.trim() || f.tcKeyPem.trim()) Object.assign(body, { tcCertPem: f.tcCertPem, tcKeyPem: f.tcKeyPem });
       if (isEdit && gateway.tcAuth === 'token') body.tcToken = '';
     } else if (f.tcAuth === 'token') {
@@ -75,18 +117,42 @@ export function GatewayForm({ isOpen, onOpenChange, gateway, onSaved }) {
   };
 
   const keepHint = isEdit ? 'Leave empty to keep the current value.' : undefined;
+  const chirpStackSelected = !isEdit && source === 'chirpstack' && Boolean(selectedGateway);
 
   return (
     <Dialog isOpen={isOpen} onOpenChange={onOpenChange} purpose="form" width={640} maxHeight="90dvh">
       <DialogHeader title={isEdit ? `Edit ${gateway.name || gateway.euiFormatted}` : 'Add gateway'} onOpenChange={onOpenChange} />
+      <div style={{ flex: '1 1 auto', minHeight: 0, overflowY: 'auto' }}>
       <VStack gap={5} padding={5}>
         {error && <Banner status="error" title="Could not save gateway" description={error} />}
 
         <VStack gap={3}>
-          <TextInput label="Gateway EUI" value={f.eui} onChange={set('eui')} isDisabled={isEdit}
+          {!isEdit && (
+            <VStack gap={2}>
+              <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '0.75rem' }}>
+                <Text type="label">Gateway source</Text>
+                <SegmentedControl aria-label="Gateway source" value={source} onChange={(value) => { setSource(value); setSelectedGateway(''); }}>
+                  <SegmentedControlItem value="manual" label="Manual" />
+                  <SegmentedControlItem value="chirpstack" label="From ChirpStack" isDisabled={!cs?.configured} />
+                </SegmentedControl>
+              </div>
+              {!cs && <Text type="supporting">Checking ChirpStack integration…</Text>}
+              {cs && !cs.configured && !cs.error && <Text type="supporting">Configure the ChirpStack integration in Setup to select a gateway from ChirpStack.</Text>}
+              {cs?.error && <Banner status="warning" title={cs.configured ? 'Could not load ChirpStack gateways' : 'Could not check ChirpStack integration'} description={cs.error} />}
+              {source === 'chirpstack' && <Selector label="ChirpStack gateway" value={selectedGateway} onChange={pickChirpStack}
+                isDisabled={!cs.gateways?.length}
+                description={cs.gateways === null ? 'Loading…' : cs.gateways.length
+                  ? 'Select a gateway to fill in its read-only EUI, name, and description.'
+                  : cs.error ? 'Choose Manual to enter a gateway instead.' : 'All ChirpStack gateways of this tenant are already in OpenCUPS.'}
+                options={[{ value: '', label: 'Select a gateway' }, ...(cs.gateways || []).map((g) => ({
+                  value: g.eui, label: `${g.name || g.gatewayId} · ${g.gatewayId}${g.lastSeenAt ? ` · seen ${dateTime(g.lastSeenAt)}` : ''}`,
+                }))]} />}
+            </VStack>
+          )}
+          <TextInput label="Gateway EUI" value={f.eui} onChange={set('eui')} isDisabled={isEdit} isReadOnly={chirpStackSelected}
             description="EUI-64 (B8-27-EB-FF-FE-61-51-B5) or Station id6 (b827:ebff:fe61:51b5)" placeholder="B8-27-EB-FF-FE-61-51-B5" />
-          <TextInput label="Name" value={f.name} onChange={set('name')} placeholder="Rooftop gateway" />
-          <TextInput label="Description" value={f.description} onChange={set('description')} isOptional />
+          <TextInput label="Name" value={f.name} onChange={set('name')} placeholder="Rooftop gateway" isReadOnly={chirpStackSelected} />
+          <TextInput label="Description" value={f.description} onChange={set('description')} isOptional isReadOnly={chirpStackSelected} />
         </VStack>
 
         <Divider />
@@ -100,10 +166,12 @@ export function GatewayForm({ isOpen, onOpenChange, gateway, onSaved }) {
             <Text type="label">LNS client authentication</Text>
             <SegmentedControl value={f.tcAuth} onChange={set('tcAuth')}>
               <SegmentedControlItem value="certificate" label="Client certificate" />
+              <SegmentedControlItem value="chirpstack" label="From ChirpStack" isDisabled={!cs?.configured} />
               <SegmentedControlItem value="token" label="Auth token" />
               <SegmentedControlItem value="none" label="None" />
             </SegmentedControl>
           </VStack>
+          {f.tcAuth === 'chirpstack' && <Text type="supporting">ChirpStack will generate a client certificate and private key when you save. The gateway must exist in the configured tenant, and ChirpStack must have a gateway CA configured.</Text>}
           {f.tcAuth === 'certificate' && (
             <>
               <PemField label="LNS client certificate" value={f.tcCertPem} onChange={set('tcCertPem')} description={keepHint} />
@@ -142,9 +210,10 @@ export function GatewayForm({ isOpen, onOpenChange, gateway, onSaved }) {
         <HStack hAlign="end" gap={2}>
           <Button label="Cancel" variant="ghost" onClick={() => onOpenChange(false)} />
           <Button label={isEdit ? 'Save changes' : 'Add gateway'} variant="primary" onClick={submit} isLoading={saving}
-            isDisabled={saving || (!isEdit && !f.eui.trim())} />
+            isDisabled={saving || (!isEdit && (!f.eui.trim() || (source === 'chirpstack' && !selectedGateway)))} />
         </HStack>
       </VStack>
+      </div>
     </Dialog>
   );
 }

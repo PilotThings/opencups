@@ -1,8 +1,9 @@
 // CUPS server configuration: CA, CUPS TLS server certificate, URLs.
-import { getSetting, setSetting } from './db.js';
+import { getSetting, setSetting, query } from './db.js';
 import { config } from './config.js';
 import { certInfo, createSelfSignedCa, issueCertificate, validateUploadedCa, parseCert, PkiError } from './pki.js';
 import { EventEmitter } from 'node:events';
+import { ChirpStackError, listGateways as csListGateways, parseServer } from './chirpstack/client.js';
 
 /** Emits 'tls-changed' whenever the CUPS server certificate or CA changes. */
 export const settingsEvents = new EventEmitter();
@@ -127,11 +128,52 @@ export function parseUrl(value, protocols, field) {
   return s;
 }
 
+// --- ChirpStack v4 integration (gRPC API; the API key is the secret) -----------
+
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+export async function getChirpStack() {
+  return getSetting('chirpstack'); // {server, tls, tenantId, apiKey} | null
+}
+
+/** Save the integration. An empty/omitted apiKey keeps the stored one. The connection is verified first. */
+export async function setChirpStack(body) {
+  const cur = await getChirpStack();
+  const server = parseServer(body?.server);
+  const tenantId = String(body?.tenantId ?? '').trim();
+  if (!UUID.test(tenantId)) throw new ChirpStackError('tenantId must be a UUID', 400);
+  const apiKey = (typeof body?.apiKey === 'string' && body.apiKey.trim()) || cur?.apiKey;
+  if (!apiKey) throw new ChirpStackError('apiKey is required', 400);
+  if (/[\r\n]/.test(apiKey)) throw new ChirpStackError('apiKey must be a single line', 400);
+  const next = { server, tls: body?.tls !== false, tenantId: tenantId.toLowerCase(), apiKey };
+  await csListGateways(next); // throws with a readable message when unreachable / unauthorised
+  await setSetting('chirpstack', next);
+  return next;
+}
+
+export async function clearChirpStack() {
+  await query('DELETE FROM settings WHERE key = $1', ['chirpstack']);
+}
+
+/** ChirpStack gateways of the configured tenant that are not yet in the CUPS database. */
+export async function availableChirpStackGateways() {
+  const cfg = await getChirpStack();
+  if (!cfg) throw new ChirpStackError('ChirpStack integration is not configured', 409);
+  const [all, { rows }] = await Promise.all([csListGateways(cfg), query('SELECT eui FROM gateways')]);
+  const known = new Set(rows.map((r) => r.eui));
+  return all.filter((g) => !known.has(g.eui)).sort((a, b) => a.name.localeCompare(b.name) || a.eui.localeCompare(b.eui));
+}
+
+function describeChirpStack(cs) {
+  return cs ? { server: cs.server, tls: cs.tls, tenantId: cs.tenantId, hasApiKey: true } : null;
+}
+
 /** Public view (no private keys). */
 export async function describeSetup() {
   const [general, ca, server] = await Promise.all([getGeneral(), getCa(), getServerCert()]);
   return {
     ...general,
+    chirpstack: describeChirpStack(await getChirpStack()),
     lnsTrust: general.lnsTrustPem ? certInfo(general.lnsTrustPem) : null,
     ca: ca ? { source: ca.source, createdAt: ca.createdAt, certPem: ca.certPem, ...certInfo(ca.certPem) } : null,
     serverCert: server ? { hosts: server.hosts, issuedAt: server.issuedAt, ...certInfo(server.certPem) } : null,

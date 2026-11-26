@@ -5,7 +5,7 @@ import { query } from '../db.js';
 import { normalizeEui } from '../cups/eui.js';
 import { cupsStatus } from '../cups/server.js';
 import * as gateways from '../gateways.js';
-import { describeSetup, generateCa, getCa, getGeneral, updateGeneral, uploadCa } from '../settings.js';
+import { availableChirpStackGateways, clearChirpStack, describeSetup, generateCa, getCa, getGeneral, setChirpStack, updateGeneral, uploadCa } from '../settings.js';
 import { certInfo } from '../pki.js';
 
 export const api = express.Router();
@@ -107,6 +107,19 @@ api.post('/setup/ca/self-signed', wrap(async (req, res) => {
   await generateCa(req.body || {});
   res.json(await describeSetup());
 }));
+
+api.put('/setup/chirpstack', wrap(async (req, res) => {
+  await setChirpStack(req.body || {});
+  res.json(await describeSetup());
+}));
+
+api.delete('/setup/chirpstack', wrap(async (req, res) => {
+  await clearChirpStack();
+  res.json(await describeSetup());
+}));
+
+// ChirpStack gateways of the configured tenant that are not yet CUPS gateways.
+api.get('/chirpstack/gateways', wrap(async (req, res) => res.json(await availableChirpStackGateways())));
 
 api.get('/setup/ca/certificate', wrap(async (req, res) => {
   const ca = await getCa();

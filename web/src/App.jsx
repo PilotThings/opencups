@@ -7,10 +7,10 @@ import { VStack, HStack } from '@astryxdesign/core/Layout';
 import { TextInput } from '@astryxdesign/core/TextInput';
 import { Button } from '@astryxdesign/core/Button';
 import { Text } from '@astryxdesign/core/Text';
-import { HomeIcon, ServerStackIcon, Cog6ToothIcon, SignalIcon } from '@heroicons/react/24/outline';
+import { HomeIcon, WifiIcon, Cog6ToothIcon, SignalIcon } from '@heroicons/react/24/outline';
 import {
   HomeIcon as HomeSolid,
-  ServerStackIcon as ServerStackSolid,
+  WifiIcon as WifiSolid,
   Cog6ToothIcon as CogSolid,
 } from '@heroicons/react/24/solid';
 import { getToken, onUnauthorized, setToken } from './api.js';
@@ -27,7 +27,7 @@ function Nav() {
       header={<SideNavHeading heading="OpenCUPS" subheading="Basics Station CUPS" icon={<SignalIcon width={20} />} headingHref="/" />}>
       <SideNavSection title="Navigation" isHeaderHidden>
         <SideNavItem label="Home" href="/" icon={HomeIcon} selectedIcon={HomeSolid} isSelected={is('/')} />
-        <SideNavItem label="Gateways" href="/gateways" icon={ServerStackIcon} selectedIcon={ServerStackSolid} isSelected={is('/gateways')} />
+        <SideNavItem label="Gateways" href="/gateways" icon={WifiIcon} selectedIcon={WifiSolid} isSelected={is('/gateways')} />
         <SideNavItem label="Setup" href="/setup" icon={Cog6ToothIcon} selectedIcon={CogSolid} isSelected={is('/setup')} />
       </SideNavSection>
     </SideNav>

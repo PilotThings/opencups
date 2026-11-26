@@ -1,0 +1,48 @@
+// Minimal subset of ChirpStack v4 api/gateway.proto (field numbers match upstream);
+// unknown fields in responses are ignored by the decoder.
+syntax = "proto3";
+
+package api;
+
+message Timestamp {
+  int64 seconds = 1;
+  int32 nanos = 2;
+}
+
+message ListGatewaysRequest {
+  uint32 limit = 1;
+  uint32 offset = 2;
+  string search = 3;
+  string tenant_id = 4;
+  string multicast_group_id = 5;
+}
+
+message GatewayListItem {
+  string tenant_id = 1;
+  string gateway_id = 2;
+  string name = 3;
+  string description = 4;
+  map<string, string> properties = 6;
+  Timestamp created_at = 7;
+  Timestamp updated_at = 8;
+  Timestamp last_seen_at = 9;
+  int32 state = 10;
+}
+
+message ListGatewaysResponse {
+  uint32 total_count = 1;
+  repeated GatewayListItem result = 2;
+}
+
+message GenerateGatewayClientCertificateRequest { string gateway_id = 1; }
+message GenerateGatewayClientCertificateResponse {
+  string tls_cert = 1;
+  string tls_key = 2;
+  string ca_cert = 3;
+  Timestamp expires_at = 4;
+}
+
+service GatewayService {
+  rpc List(ListGatewaysRequest) returns (ListGatewaysResponse);
+  rpc GenerateClientCertificate(GenerateGatewayClientCertificateRequest) returns (GenerateGatewayClientCertificateResponse);
+}
